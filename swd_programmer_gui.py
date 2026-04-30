@@ -154,8 +154,8 @@ class AppState:
         self.flash_err_session = 0       # per run
         self.scale     = 1.0          # font scale factor
         self.log_height = 220
-        self.sidebar_width = 248
-        self.toolbar_height = 78
+        self.sidebar_width = 250
+        self.toolbar_height = 60
         self._init_channels()
 
     # ── helpers ──────────────────────────────────────────────────────────────
@@ -1431,7 +1431,7 @@ def main(page: ft.Page):
             spacing=0,
             tight=True,
         ),
-        padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+        padding=ft.Padding.symmetric(horizontal=5, vertical=0),
         bgcolor='#242424',
         border=ft.Border.only(
             bottom=ft.BorderSide(0.5, ft.Colors.OUTLINE_VARIANT)),
