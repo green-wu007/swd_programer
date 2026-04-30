@@ -1,0 +1,470 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-size:12px;color:var(--color-text-primary);font-family:var(--font-sans);user-select:none}
+.shell{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;background:var(--color-background-primary);display:flex;flex-direction:column}
+.menubar{display:flex;align-items:center;gap:1px;padding:3px 8px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);flex-shrink:0}
+.menu-item{position:relative;padding:4px 10px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--color-text-secondary)}
+.menu-item:hover,.menu-item.open{background:var(--color-background-primary);color:var(--color-text-primary)}
+.dropdown{display:none;position:absolute;top:calc(100% + 2px);left:0;min-width:200px;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:4px;z-index:200}
+.menu-item.open>.dropdown{display:block}
+.dd-item{padding:5px 12px;border-radius:4px;cursor:pointer;font-size:11px;display:flex;justify-content:space-between;align-items:center;color:var(--color-text-secondary)}
+.dd-item:hover{background:var(--color-background-secondary);color:var(--color-text-primary)}
+.dd-kbd{font-family:var(--font-mono);font-size:10px;color:var(--color-text-tertiary)}
+.dd-sep{height:0.5px;background:var(--color-border-tertiary);margin:4px 0}
+.toolbar{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);flex-shrink:0;flex-wrap:wrap}
+.tb-btn{padding:5px 13px;font-size:11px;font-weight:500;cursor:pointer;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary);white-space:nowrap;transition:all .12s}
+.tb-btn:hover{background:var(--color-background-secondary)}
+.tb-btn.primary{background:var(--color-text-primary);color:var(--color-background-primary);border-color:transparent}
+.tb-btn.primary:hover{opacity:.85}
+.tb-btn.act{background:var(--color-text-primary);color:var(--color-background-primary);border-color:transparent}
+.tb-sep{width:0.5px;height:20px;background:var(--color-border-tertiary);flex-shrink:0}
+.toggle-wrap{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--color-text-secondary);cursor:pointer}
+.tog{width:30px;height:17px;border-radius:9px;background:var(--color-border-secondary);position:relative;transition:background .2s;flex-shrink:0}
+.tog.on{background:#1D9E75}
+.tog::after{content:'';position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;transition:transform .2s}
+.tog.on::after{transform:translateX(13px)}
+.freq-select{padding:4px 8px;font-size:11px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary);cursor:pointer;font-family:var(--font-mono)}
+.body-wrap{display:flex;flex-direction:column;flex:1;min-height:0}
+.body-mid{display:grid;grid-template-columns:230px 1fr;flex:1;min-height:0;overflow:hidden}
+.sidebar{border-right:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column;overflow:hidden}
+.sb-hdr{padding:7px 10px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.8px;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.sb-btns{display:flex;gap:4px}
+.icon-btn{padding:2px 8px;font-size:11px;cursor:pointer;border:0.5px solid var(--color-border-secondary);border-radius:4px;background:none;color:var(--color-text-secondary);transition:all .12s}
+.icon-btn:hover{background:var(--color-background-secondary);color:var(--color-text-primary)}
+.icon-btn.rmv:hover{background:var(--color-background-danger);color:var(--color-text-danger);border-color:var(--color-border-danger)}
+.drop-zone{margin:6px;border:1.5px dashed var(--color-border-secondary);border-radius:var(--border-radius-md);padding:8px;text-align:center;font-size:10px;color:var(--color-text-tertiary);cursor:pointer;flex-shrink:0;transition:all .15s}
+.drop-zone:hover,.drop-zone.over{border-color:var(--color-border-info);background:var(--color-background-info);color:var(--color-text-info)}
+.file-list{flex:1;overflow-y:auto;padding:4px}
+.fi{padding:8px 8px;border-radius:var(--border-radius-md);cursor:pointer;margin-bottom:3px;border:0.5px solid transparent}
+.fi:hover{background:var(--color-background-secondary)}
+.fi.active{background:var(--color-background-info);border-color:var(--color-border-info)}
+.fi-name{font-size:11px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fi.active .fi-name{color:var(--color-text-info)}
+.fi-crc{display:flex;align-items:baseline;gap:5px;margin-top:4px;line-height:1}
+.fi-crc .lbl{font-size:16px;font-weight:400;color:var(--color-text-secondary)}
+.fi-crc .val{font-size:33px;font-weight:500;font-family:var(--font-mono);letter-spacing:.5px;color:#185FA5}
+.fi.active .fi-crc .lbl{color:var(--color-text-info);opacity:.7}
+.fi.active .fi-crc .val{color:#0C447C}
+.fi-meta{font-size:10px;color:var(--color-text-secondary);margin-top:3px;display:flex;justify-content:space-between}
+.fi.active .fi-meta{color:var(--color-text-info);opacity:.7}
+.fi-sz{padding:1px 5px;border-radius:3px;font-size:9px;font-weight:500;background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.fi.active .fi-sz{background:var(--color-background-info);color:var(--color-text-info)}
+.ctx{position:fixed;min-width:155px;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:4px;z-index:999;display:none}
+.ctx.show{display:block}
+.ctx-item{padding:5px 12px;border-radius:4px;cursor:pointer;font-size:11px;color:var(--color-text-secondary)}
+.ctx-item:hover{background:var(--color-background-secondary);color:var(--color-text-primary)}
+.ctx-item.danger:hover{background:var(--color-background-danger);color:var(--color-text-danger)}
+.ctx-sep{height:0.5px;background:var(--color-border-tertiary);margin:4px 0}
+
+/* ── channel cards: black bg, white text ── */
+.ch-area{display:flex;flex-direction:column;overflow:hidden;background:#111}
+.ch-grid{display:grid;gap:6px;padding:8px;flex:1;overflow-y:auto;align-content:start;background:#111}
+.ch-card{
+  background:#1a1a1a;
+  border:0.5px solid #333;
+  border-radius:var(--border-radius-lg);
+  padding:10px 12px;
+  display:flex;flex-direction:column;gap:4px;overflow:hidden;min-height:0;
+}
+/* status accent — left border only */
+.ch-card.idle{border-left:3px solid #444}
+.ch-card.detecting{border-left:3px solid #EF9F27}
+.ch-card.running{border-left:3px solid #378ADD}
+.ch-card.done-ok{border-left:3px solid #1D9E75}
+.ch-card.done-err{border-left:3px solid #E24B4A}
+.ch-card.no-target{border-left:3px solid #333;opacity:.55}
+
+.ch-hdr{display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.ch-title{font-size:15px;font-weight:500;color:#e8e8e8}
+.ch-badge{font-size:11px;font-weight:500;padding:2px 7px;border-radius:3px;flex-shrink:0}
+.ch-prog{height:5px;background:#333;border-radius:3px;overflow:hidden;flex-shrink:0}
+.ch-bar{height:100%;border-radius:3px;transition:width .35s ease}
+.ch-speed{font-size:12px;color:#888;flex-shrink:0}
+.ch-mac{font-size:12px;color:#6a6a8a;font-family:var(--font-mono);flex-shrink:0}
+
+/* CRC in channel — unchanged colours, just on dark bg */
+.ch-crc{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1}
+.ch-crc .lbl{font-size:18px;font-weight:400;margin-bottom:3px}
+.ch-crc .val{font-size:36px;font-weight:500;font-family:var(--font-mono);letter-spacing:.5px}
+.ch-crc.ok .lbl{color:#5DCAA5}
+.ch-crc.ok .val{color:#1D9E75}
+.ch-crc.err .lbl{color:#F09595}
+.ch-crc.err .val{color:#E24B4A;font-size:28px}
+.ch-crc.err .sub{font-size:13px;color:#E24B4A;margin-top:3px;font-family:var(--font-mono)}
+.ch-crc.pending .val{font-size:15px;color:#666;font-family:var(--font-sans);font-weight:400}
+.ch-crc.detecting-txt .val{font-size:14px;color:#EF9F27;font-family:var(--font-sans);font-weight:400}
+
+/* log */
+.log-panel{border-top:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column;height:160px;flex-shrink:0}
+.log-hdr{padding:5px 12px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.8px;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.log-body{flex:1;overflow-y:auto;padding:5px 12px;font-family:var(--font-mono);font-size:11px;line-height:1.6}
+.log-row{display:flex;gap:8px;flex-wrap:nowrap}
+.log-ts{color:var(--color-text-tertiary);width:68px;flex-shrink:0}
+.log-ch{width:32px;flex-shrink:0;font-weight:500}
+.log-mac{color:#534AB7;margin-right:4px}
+.c-info{color:var(--color-text-info)}
+.c-ok{color:var(--color-text-success)}
+.c-warn{color:var(--color-text-warning)}
+.c-err{color:var(--color-text-danger)}
+.c-muted{color:var(--color-text-secondary)}
+.statusbar{padding:3px 12px;border-top:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary);font-size:10px;color:var(--color-text-secondary);display:flex;gap:16px;align-items:center;flex-shrink:0}
+</style>
+
+<input type="file" id="file-input" accept=".hex,.bin" multiple style="display:none" onchange="handleFileInput(this.files)">
+<div class="ctx" id="ctx">
+  <div class="ctx-item" onclick="ctxDo('select')">選為燒錄目標</div>
+  <div class="ctx-item" onclick="ctxDo('rename')">重新命名…</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" onclick="ctxDo('remove')">移除</div>
+</div>
+
+<div class="shell">
+  <div class="menubar">
+    <div class="menu-item" onclick="toggleMenu(this)">檔案
+      <div class="dropdown">
+        <div class="dd-item" onclick="document.getElementById('file-input').click()">開啟燒錄檔案… <span class="dd-kbd">Ctrl+O</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item" onclick="saveLog()">儲存 Log… <span class="dd-kbd">Ctrl+S</span></div>
+        <div class="dd-sep"></div>
+        <div class="dd-item">結束</div>
+      </div>
+    </div>
+    <div class="menu-item" onclick="toggleMenu(this)">裝置
+      <div class="dropdown">
+        <div class="dd-item" onclick="addLog('SYS','c-muted','重新掃描 Programmer…')">重新掃描 Programmer</div>
+        <div class="dd-sep"></div>
+        <div class="dd-item" onclick="identifyAll()">識別所有目標晶片</div>
+        <div class="dd-item">解除讀寫保護…</div>
+      </div>
+    </div>
+    <div class="menu-item" onclick="toggleMenu(this)">選項
+      <div class="dropdown">
+        <div class="dd-item" onclick="toggleOpt('verify')"><span class="oc" data-k="verify">✓</span>&nbsp;CRC16 驗證</div>
+        <div class="dd-item" onclick="toggleOpt('reset')"><span class="oc" data-k="reset">✓</span>&nbsp;燒錄後 Reset</div>
+        <div class="dd-item" onclick="toggleOpt('autoId')"><span class="oc" data-k="autoId">&nbsp;</span>&nbsp;自動識別晶片</div>
+        <div class="dd-item" onclick="toggleAuto()"><span class="oc" data-k="auto">&nbsp;</span>&nbsp;自動燒錄</div>
+        <div class="dd-sep"></div>
+        <div class="dd-item" onclick="setChannels(S.ch===4?8:4)">通道數：<span id="ch-lbl">4</span> → 切換</div>
+        <div class="dd-item">RAM loader 設定…</div>
+      </div>
+    </div>
+    <div class="menu-item" onclick="toggleMenu(this)">說明
+      <div class="dropdown">
+        <div class="dd-item">使用手冊</div>
+        <div class="dd-item">關於…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="tb-btn primary" onclick="startFlash()">▶ 開始燒錄</button>
+    <button class="tb-btn" onclick="stopFlash()" style="border-color:var(--color-border-danger);color:var(--color-text-danger)">■ 停止</button>
+    <div class="tb-sep"></div>
+    <label class="toggle-wrap" onclick="toggleAuto()">
+      <div class="tog" id="auto-tog"></div><span>自動燒錄</span>
+    </label>
+    <label class="toggle-wrap" onclick="toggleOpt('autoId')">
+      <div class="tog" id="autoid-tog"></div><span>自動識別</span>
+    </label>
+    <div class="tb-sep"></div>
+    <span style="font-size:10px;color:var(--color-text-secondary)">通道</span>
+    <button class="tb-btn" id="btn4" onclick="setChannels(4)">4</button>
+    <button class="tb-btn" id="btn8" onclick="setChannels(8)">8</button>
+    <div class="tb-sep"></div>
+    <span style="font-size:10px;color:var(--color-text-secondary)">SWD</span>
+    <select class="freq-select" id="freq-sel" onchange="onFreqChange(this.value)">
+      <option value="1">1 MHz</option>
+      <option value="2">2 MHz</option>
+      <option value="4">4 MHz</option>
+      <option value="8" selected>8 MHz</option>
+      <option value="16">16 MHz</option>
+      <option value="32">32 MHz</option>
+    </select>
+    <button class="tb-btn" style="margin-left:auto" onclick="clearLog()">清除 Log</button>
+  </div>
+
+  <div class="body-wrap">
+    <div class="body-mid">
+      <div class="sidebar">
+        <div class="sb-hdr">
+          燒錄檔案
+          <div class="sb-btns">
+            <button class="icon-btn" onclick="document.getElementById('file-input').click()">+ 加入</button>
+            <button class="icon-btn rmv" onclick="removeSelected()">− 移除</button>
+          </div>
+        </div>
+        <div class="drop-zone" id="dz"
+          ondragover="dzOver(event)" ondragleave="dzLeave()" ondrop="dzDrop(event)"
+          onclick="document.getElementById('file-input').click()">
+          拖曳 .hex / .bin 至此<br>或點擊選擇
+        </div>
+        <div class="file-list" id="file-list"></div>
+      </div>
+
+      <div class="ch-area">
+        <div class="ch-grid" id="ch-grid"></div>
+      </div>
+    </div>
+
+    <div class="log-panel">
+      <div class="log-hdr">
+        燒錄 Log
+        <div style="display:flex;gap:10px;align-items:center">
+          <span id="log-cnt" style="color:var(--color-text-tertiary)">0 筆</span>
+          <span style="cursor:pointer" onclick="clearLog()">清除</span>
+        </div>
+      </div>
+      <div class="log-body" id="log-body"></div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span id="sb-status">就緒</span>
+    <span id="sb-auto"></span>
+    <span id="sb-autoid"></span>
+    <span style="margin-left:auto" id="sb-prog">Programmer: nRF54LM20A (COM3)</span>
+    <span id="sb-clk"></span>
+  </div>
+</div>
+
+<script>
+const CRC16_TABLE=(()=>{const t=[];for(let i=0;i<256;i++){let c=i;for(let j=0;j<8;j++)c=c&1?(c>>>1)^0x8408:c>>>1;t.push(c);}return t;})();
+function crc16str(s){let c=0xFFFF;for(let i=0;i<s.length;i++){c=CRC16_TABLE[(c^s.charCodeAt(i))&0xFF]^(c>>>8);}return((c^0xFFFF)>>>0).toString(16).toUpperCase().padStart(4,'0');}
+function fakeCrc(s){return crc16str(s+Math.random().toFixed(6));}
+function ts(){const n=new Date();return[n.getHours(),n.getMinutes(),n.getSeconds()].map(v=>v.toString().padStart(2,'0')).join(':');}
+function fakeMAC(){return Array.from({length:6},()=>Math.floor(Math.random()*256).toString(16).toUpperCase().padStart(2,'0')).join(':');}
+
+const S={
+  files:[
+    {name:'app_v1.2.3.hex',size:'298 KB',date:'2026-03-14 10:22',crc:'A3F1',active:true},
+    {name:'bootloader_v3.hex',size:'48 KB',date:'2026-03-14 09:55',crc:'2C8D',active:false},
+    {name:'softdevice_s140.hex',size:'156 KB',date:'2026-03-13 17:30',crc:'E7B2',active:false},
+  ],
+  ch:4,freq:8,
+  opts:{verify:true,reset:true,auto:false,autoId:false},
+  running:false,ctxIdx:-1,logs:[],timer:null,
+  chips:['nRF52840','nRF52840','nRF52810','nRF52833','nRF52840','nRF52840','nRF52832','nRF52840'],
+  macs:Array.from({length:8},()=>fakeMAC()),
+  chState:[],
+};
+function initCh(){S.chState=Array.from({length:8},(_,i)=>({id:i,chip:S.chips[i],mac:S.macs[i],status:'idle',pct:0,crc:'',crcExpect:'',speed:'—',time:'—'}));}
+initCh();
+
+function renderFiles(){
+  const el=document.getElementById('file-list');
+  if(!S.files.length){el.innerHTML='<div style="padding:14px;text-align:center;font-size:11px;color:var(--color-text-tertiary)">尚無燒錄檔案</div>';return;}
+  el.innerHTML=S.files.map((f,i)=>`
+    <div class="fi${f.active?' active':''}" onclick="selFile(${i})" oncontextmenu="showCtx(event,${i})">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span class="fi-name" title="${f.name}">${f.name}</span>
+        <span class="fi-sz">${f.size}</span>
+      </div>
+      <div class="fi-crc"><span class="lbl">CRC16</span><span class="val">${f.crc}</span></div>
+      <div class="fi-meta"><span>${f.date}</span></div>
+    </div>`).join('');
+}
+
+function renderChannels(){
+  const grid=document.getElementById('ch-grid');
+  const n=S.ch,cols=n<=4?2:4,rows=Math.ceil(n/cols);
+  grid.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`;
+  grid.style.gridTemplateRows=`repeat(${rows},1fr)`;
+  grid.style.height='100%';
+
+  const badgeClr={idle:'#555',detecting:'#EF9F27',running:'#378ADD','done-ok':'#1D9E75','done-err':'#E24B4A','no-target':'#444'};
+  const labelMap={idle:'待機',detecting:'偵測中',running:'燒錄中','done-ok':'完成','done-err':'CRC 錯誤','no-target':'無裝置'};
+  const barClr={idle:'#444',detecting:'#EF9F27',running:'#378ADD','done-ok':'#1D9E75','done-err':'#E24B4A','no-target':'#333'};
+
+  grid.innerHTML=Array.from({length:n},(_,i)=>{
+    const c=S.chState[i];
+    const pct=Math.round(c.pct);
+    const clr=badgeClr[c.status]||'#555';
+    let crcHtml='';
+    if(c.status==='done-ok'){
+      crcHtml=`<div class="ch-crc ok"><span class="lbl">CRC16</span><span class="val">${c.crc}</span></div>`;
+    } else if(c.status==='done-err'){
+      crcHtml=`<div class="ch-crc err"><span class="lbl">CRC16 — 不符！</span><span class="val">${c.crc}</span><span class="sub">預期 ${c.crcExpect}</span></div>`;
+    } else if(c.status==='detecting'){
+      crcHtml=`<div class="ch-crc detecting-txt"><span class="val">偵測晶片中…</span></div>`;
+    } else if(c.status==='no-target'){
+      crcHtml=`<div class="ch-crc pending"><span class="val">無目標裝置</span></div>`;
+    } else if(c.status==='running'){
+      crcHtml=`<div class="ch-crc pending"><span class="val">${pct}%</span></div>`;
+    } else {
+      crcHtml=`<div class="ch-crc pending"><span class="val">${c.chip?'待燒錄':'—'}</span></div>`;
+    }
+    return `<div class="ch-card ${c.status}" style="min-height:0">
+      <div class="ch-hdr">
+        <span class="ch-title">CH ${i} <span style="font-family:var(--font-mono);font-size:12px;font-weight:400;color:#aaa">${c.chip||'—'}</span></span>
+        <span class="ch-badge" style="background:${clr}33;color:${clr};border:0.5px solid ${clr}55">${labelMap[c.status]||'待機'}</span>
+      </div>
+      <div class="ch-prog"><div class="ch-bar" style="width:${c.pct}%;background:${barClr[c.status]||'#444'}"></div></div>
+      <div class="ch-speed">${c.speed}${c.time!=='—'?' · ⏱ '+c.time:''}</div>
+      ${c.mac&&c.status!=='idle'&&c.status!=='no-target'?`<div class="ch-mac">MAC ${c.mac}</div>`:''}
+      ${crcHtml}
+    </div>`;
+  }).join('');
+}
+
+function renderLog(){
+  const el=document.getElementById('log-body');
+  el.innerHTML=S.logs.slice(-300).map(l=>`<div class="log-row"><span class="log-ts">${l.ts}</span><span class="log-ch ${l.cls}">${l.ch}</span>${l.mac?`<span class="log-mac">[${l.mac}]</span>`:''}<span class="${l.cls}">${l.msg}</span></div>`).join('');
+  el.scrollTop=el.scrollHeight;
+  document.getElementById('log-cnt').textContent=S.logs.length+' 筆';
+}
+function addLog(ch,cls,msg,mac){S.logs.push({ts:ts(),ch,cls,msg,mac:mac||''});renderLog();}
+function clearLog(){S.logs=[];renderLog();}
+
+function selFile(i){S.files.forEach((f,j)=>f.active=j===i);renderFiles();}
+function addFilesFromList(list){
+  let added=0;
+  [...list].forEach(f=>{
+    if(!S.files.find(x=>x.name===f.name)){
+      const kb=Math.round(f.size/1024)||Math.round(Math.random()*200+30);
+      S.files.push({name:f.name,size:kb+' KB',date:new Date().toISOString().slice(0,16).replace('T',' '),crc:fakeCrc(f.name),active:false});
+      addLog('SYS','c-muted','加入: '+f.name);added++;
+    }
+  });
+  if(!S.files.find(f=>f.active)&&S.files.length)S.files[0].active=true;
+  renderFiles();
+  if(added&&S.opts.auto&&!S.running)autoSequence();
+}
+function handleFileInput(files){addFilesFromList(files);}
+function dzOver(e){e.preventDefault();document.getElementById('dz').classList.add('over');}
+function dzLeave(){document.getElementById('dz').classList.remove('over');}
+function dzDrop(e){e.preventDefault();document.getElementById('dz').classList.remove('over');if(e.dataTransfer.files.length)addFilesFromList(e.dataTransfer.files);}
+function removeSelected(){
+  const i=S.files.findIndex(f=>f.active);if(i<0)return;
+  const n=S.files[i].name;S.files.splice(i,1);
+  if(S.files.length)S.files[Math.min(i,S.files.length-1)].active=true;
+  addLog('SYS','c-warn','移除: '+n);renderFiles();
+}
+function showCtx(e,i){e.preventDefault();S.ctxIdx=i;const m=document.getElementById('ctx');m.style.left=e.clientX+'px';m.style.top=e.clientY+'px';m.classList.add('show');}
+function ctxDo(a){
+  document.getElementById('ctx').classList.remove('show');
+  if(a==='remove'){selFile(S.ctxIdx);removeSelected();}
+  else if(a==='select')selFile(S.ctxIdx);
+  else if(a==='rename'){const f=S.files[S.ctxIdx];const n=prompt('新檔名：',f.name);if(n){f.name=n;f.crc=fakeCrc(n);renderFiles();}}
+}
+document.addEventListener('click',()=>document.getElementById('ctx').classList.remove('show'));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('ctx').classList.remove('show');});
+
+function syncTog(k,id){const t=document.getElementById(id);if(t)t.className='tog'+(S.opts[k]?' on':'');}
+function toggleOpt(k){
+  S.opts[k]=!S.opts[k];
+  document.querySelectorAll('.oc[data-k="'+k+'"]').forEach(e=>e.textContent=S.opts[k]?'✓':' ');
+  if(k==='autoId'){syncTog('autoId','autoid-tog');document.getElementById('sb-autoid').textContent=S.opts.autoId?'● 自動識別':'';if(S.opts.autoId)addLog('SYS','c-info','自動識別晶片已啟用');}
+}
+function toggleAuto(){
+  S.opts.auto=!S.opts.auto;
+  document.querySelectorAll('.oc[data-k="auto"]').forEach(e=>e.textContent=S.opts.auto?'✓':' ');
+  syncTog('auto','auto-tog');
+  document.getElementById('sb-auto').textContent=S.opts.auto?'★ 自動燒錄':'';
+  if(S.opts.auto)addLog('SYS','c-warn','自動燒錄已啟用');
+}
+function toggleMenu(el){
+  const was=el.classList.contains('open');
+  document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('open'));
+  if(!was)el.classList.add('open');
+}
+document.addEventListener('click',e=>{if(!e.target.closest('.menu-item'))document.querySelectorAll('.menu-item').forEach(m=>m.classList.remove('open'));});
+function onFreqChange(v){S.freq=parseInt(v);addLog('SYS','c-muted','SWD 頻率: '+S.freq+' MHz');}
+function setChannels(n){
+  S.ch=n;
+  document.getElementById('btn4').className='tb-btn'+(n===4?' act':'');
+  document.getElementById('btn8').className='tb-btn'+(n===8?' act':'');
+  document.getElementById('ch-lbl').textContent=n;
+  renderChannels();
+}
+function identifyAll(){
+  if(S.running)return;
+  addLog('SYS','c-info','識別所有目標晶片中…');
+  for(let i=0;i<S.ch;i++){S.chState[i].status='detecting';S.chState[i].pct=0;}
+  renderChannels();
+  setTimeout(()=>{
+    for(let i=0;i<S.ch;i++){
+      const ok=Math.random()>0.15;
+      if(ok){S.chState[i].status='idle';S.chState[i].chip=S.chips[i];S.chState[i].mac=fakeMAC();addLog('CH'+i,'c-info','FICR: '+S.chState[i].chip+' MAC='+S.chState[i].mac,S.chState[i].mac);}
+      else{S.chState[i].status='no-target';addLog('CH'+i,'c-warn','無法識別目標');}
+    }
+    renderChannels();addLog('SYS','c-info','識別完成');
+  },900);
+}
+function autoSequence(){
+  if(S.running)return;
+  addLog('SYS','c-info','自動燒錄：偵測目標中…');
+  document.getElementById('sb-status').textContent='偵測中…';
+  for(let i=0;i<S.ch;i++){S.chState[i].status='detecting';S.chState[i].pct=0;}
+  renderChannels();
+  setTimeout(()=>{
+    let found=0;
+    for(let i=0;i<S.ch;i++){
+      const ok=Math.random()>0.2;
+      if(ok){S.chState[i].status='idle';S.chState[i].chip=S.chips[i];S.chState[i].mac=fakeMAC();found++;addLog('CH'+i,'c-info','Target: '+S.chState[i].chip,S.chState[i].mac);}
+      else{S.chState[i].status='no-target';addLog('CH'+i,'c-warn','無目標裝置');}
+    }
+    renderChannels();
+    addLog('SYS','c-info',`偵測完成：${found}/${S.ch} 有目標`);
+    if(found>0)setTimeout(startFlash,300);
+    else document.getElementById('sb-status').textContent='無目標裝置';
+  },1200);
+}
+function startFlash(){
+  if(S.running)return;
+  const af=S.files.find(f=>f.active);
+  if(!af){addLog('SYS','c-warn','請先選擇燒錄檔案');return;}
+  if(S.opts.autoId){
+    addLog('SYS','c-info','自動識別晶片中（燒錄前）…');
+    for(let i=0;i<S.ch;i++)if(S.chState[i].status!=='no-target')S.chState[i].status='detecting';
+    renderChannels();
+    setTimeout(()=>{
+      for(let i=0;i<S.ch;i++){if(S.chState[i].status==='detecting'){S.chState[i].status='idle';S.chState[i].mac=fakeMAC();addLog('CH'+i,'c-info','識別: '+S.chState[i].chip,S.chState[i].mac);}}
+      renderChannels();doFlash(af);
+    },700);
+    return;
+  }
+  doFlash(af);
+}
+function doFlash(af){
+  S.running=true;
+  document.getElementById('sb-status').textContent='燒錄中…';
+  addLog('SYS','c-info','▶ 燒錄: '+af.name+'  CRC16='+af.crc);
+  const active=S.chState.slice(0,S.ch).filter(c=>c.status!=='no-target');
+  if(!active.length){addLog('SYS','c-warn','無可用目標');S.running=false;return;}
+  active.forEach(c=>{c.status='running';c.pct=0;c.crc='';c.crcExpect=af.crc;c.time='—';c.speed=(c.chip==='nRF52810'?'1KB':'4KB')+' chunk';addLog('CH'+c.id,'c-info','ERASEALL + 預填 buffers',c.mac);});
+  renderChannels();
+  S.timer=setInterval(()=>{
+    active.forEach(c=>{
+      if(c.status==='running'){
+        c.pct=Math.min(100,c.pct+(c.chip==='nRF52810'?2:3)+Math.random()*0.8);
+        if(c.pct>=100){
+          c.pct=100;const ok=Math.random()>0.12;
+          c.status=ok?'done-ok':'done-err';c.time=(2.5+Math.random()*1.2).toFixed(2)+'s';
+          if(ok){c.crc=af.crc;addLog('CH'+c.id,'c-ok','完成 CRC16='+c.crc+' ⏱'+c.time,c.mac);}
+          else{c.crc=fakeCrc('e'+c.id);addLog('CH'+c.id,'c-err','CRC 錯誤！Expected '+af.crc+' Got '+c.crc,c.mac);}
+        }
+      }
+    });
+    renderChannels();
+    if(active.every(c=>c.status!=='running')){
+      clearInterval(S.timer);S.running=false;
+      const errs=active.filter(c=>c.status==='done-err').length;
+      document.getElementById('sb-status').textContent=errs?`完成（${errs} 個錯誤）`:'全部完成 ✓';
+      addLog('SYS',errs?'c-err':'c-ok',errs?`${errs} 個通道 CRC 錯誤`:'所有通道燒錄完成 ✓');
+    }
+  },90);
+}
+function stopFlash(){
+  if(S.timer)clearInterval(S.timer);S.running=false;
+  for(let i=0;i<S.ch;i++){if(['running','detecting'].includes(S.chState[i].status))S.chState[i].status='idle';}
+  renderChannels();addLog('SYS','c-warn','使用者中止');document.getElementById('sb-status').textContent='已中止';
+}
+function saveLog(){addLog('SYS','c-muted','Log 匯出 ('+S.logs.length+' 筆)');}
+setInterval(()=>{document.getElementById('sb-clk').textContent=ts();},1000);
+addLog('SYS','c-muted','Programmer nRF54LM20A 已連線 (COM3)');
+addLog('SYS','c-muted','SWD 8 MHz · 4 通道 · CRC16 驗證已啟用');
+for(let i=0;i<4;i++)addLog('CH'+i,'c-info','Target: '+S.chips[i]+' — RAM 256KB',S.macs[i]);
+addLog('SYS','c-muted','就緒');
+setChannels(4);renderFiles();
+</script>
