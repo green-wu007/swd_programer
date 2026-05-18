@@ -75,11 +75,18 @@ MAX_SCALE  = 2.00
 FONT_BOOST = 1.45          # larger global font scaling
 
 CHIPS = [
-    '', '', '', '',
+    'nRF52805', 'nRF52810', 'nRF528', 'nRF52832',
     '', '', '', '',
 ]
 
 SWD_FREQS = ['1 MHz', '2 MHz', '4 MHz', '8 MHz', '16 MHz', '32 MHz']
+
+COM_BAUDRATES = [
+    300, 600, 1200, 2400, 4800, 9600,
+    19200, 38400, 57600, 115200, 230400, 460800, 921600,
+]
+COM_BAUD_DD_WIDTH = 128
+COM_DD_MENU_WIDTH = 680
 
 # Channel card colours
 CH_FG = {
@@ -145,6 +152,7 @@ class AppState:
         self.running   = False
         self.connected = False
         self.com_port  = ''
+        self.com_baudrate = 115200
         self.com_labels: dict[str, str] = {}
         self.logs      = []
         self.log_seq   = 0
@@ -155,7 +163,7 @@ class AppState:
         self.scale     = 1.0          # font scale factor
         self.log_height = 220
         self.sidebar_width = 250
-        self.toolbar_height = 60
+        self.toolbar_height = 96
         self._init_channels()
 
     # ── helpers ──────────────────────────────────────────────────────────────
@@ -266,6 +274,7 @@ def main(page: ft.Page):
     r_conn_status = ft.Ref[ft.Text]()
     r_conn_btn    = ft.Ref[ft.OutlinedButton]()
     r_com_dd      = ft.Ref[ft.Dropdown]()
+    r_baud_dd     = ft.Ref[ft.Dropdown]()
     r_ch4_btn     = ft.Ref[ft.OutlinedButton]()
     r_ch8_btn     = ft.Ref[ft.OutlinedButton]()
     r_start_btn   = ft.Ref[ft.FilledButton]()
@@ -531,7 +540,14 @@ def main(page: ft.Page):
         _sync_com_dropdown_surface()
         _add_log('SYS', 'muted',
                  f'COM Port 切換為 {state.com_labels.get(state.com_port, state.com_port)}')
-        page.update()
+
+    def _on_baud_change(e):
+        try:
+            state.com_baudrate = int(e.control.value)
+        except (TypeError, ValueError):
+            pass
+        e.control.text = str(state.com_baudrate)
+        _add_log('SYS', 'muted', f'串口 Baud rate 設定為 {state.com_baudrate}')
 
     def _port_watch_loop():
         last_sig: Optional[tuple] = None
@@ -591,7 +607,9 @@ def main(page: ft.Page):
                 return
             try:
                 serial_conn["port"] = serial.Serial(
-                    port=state.com_port, baudrate=115200, timeout=0.2
+                    port=state.com_port,
+                    baudrate=state.com_baudrate,
+                    timeout=0.2,
                 )
             except Exception as ex:
                 _add_log('SYS', 'err', f'連線失敗: {ex}')
@@ -604,7 +622,8 @@ def main(page: ft.Page):
                 r_conn_btn.current.content = ft.Text('斷線', size=19)
             if r_sb_prog.current:
                 r_sb_prog.current.value = f'Programmer: nRF54LM20A ({state.com_port})'
-            _add_log('SYS', 'ok', f'已連線 Programmer ({state.com_port})')
+            _add_log('SYS', 'ok',
+                     f'已連線 Programmer ({state.com_port} @ {state.com_baudrate})')
             _serial_send("PING")
         page.update()
 
@@ -1292,13 +1311,33 @@ def main(page: ft.Page):
         ],
         value=state.com_port if state.com_port else None,
         text=_com_surface,
-        width=340,
-        menu_width=520,
+        expand=True,
+        menu_width=COM_DD_MENU_WIDTH,
         text_size=19,
         height=36,
         content_padding=5,
         tooltip='COM Port（連接埠 + 裝置名稱）',
         on_select=_on_com_change,
+    )
+
+    baud_dd = ft.Dropdown(
+        ref=r_baud_dd,
+        options=[
+            ft.dropdown.Option(
+                key=str(b), text=str(b),
+                content=ft.Text(str(b), size=19),
+            )
+            for b in COM_BAUDRATES
+        ],
+        value=str(state.com_baudrate),
+        text=str(state.com_baudrate),
+        width=COM_BAUD_DD_WIDTH,
+        menu_width=COM_BAUD_DD_WIDTH,
+        text_size=19,
+        height=36,
+        content_padding=5,
+        tooltip='串口 Baud rate',
+        on_select=_on_baud_change,
     )
 
     conn_status_txt = ft.Text(
@@ -1336,12 +1375,11 @@ def main(page: ft.Page):
         height=state.toolbar_height,
         content=ft.Column(
             controls=[
-                ft.Container(
-                    content=ft.Row(
-                        controls=[
-                        # ─ COM port section ─────────────────────────────────
+                ft.Row(
+                    controls=[
                         ft.Text('COM', size=18, color=ft.Colors.OUTLINE),
                         com_dd,
+                        baud_dd,
                         ft.IconButton(
                             icon=ft.Icons.REFRESH,
                             icon_size=22, tooltip='重新掃描 COM port',
@@ -1351,9 +1389,13 @@ def main(page: ft.Page):
                         ),
                         conn_btn,
                         conn_status_txt,
-                        ft.VerticalDivider(
-                            width=1, color=ft.Colors.OUTLINE_VARIANT),
-
+                    ],
+                    spacing=8,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                ft.Container(
+                    content=ft.Row(
+                        controls=[
                         # ─ Flash ───────────────────────────────────────────
                         ft.FilledButton(
                             ref=r_start_btn,
@@ -1428,10 +1470,10 @@ def main(page: ft.Page):
                     expand=True,
                 ),
             ],
-            spacing=0,
+            spacing=6,
             tight=True,
         ),
-        padding=ft.Padding.symmetric(horizontal=5, vertical=0),
+        padding=ft.Padding.symmetric(horizontal=8, vertical=6),
         bgcolor='#242424',
         border=ft.Border.only(
             bottom=ft.BorderSide(0.5, ft.Colors.OUTLINE_VARIANT)),
