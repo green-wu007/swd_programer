@@ -88,6 +88,47 @@ COM_BAUDRATES = [
 COM_BAUD_DD_WIDTH = 128
 COM_DD_MENU_WIDTH = 680
 
+PROGRAMMER_COMMANDS = {
+    "CMD_CONNECT": {
+        "label": "Connect",
+        "api": (
+            "LowLevel.API(DeviceFamily.UNKNOWN).connect_to_emu_*(), "
+            "read_device_family(), read_device_version()"
+        ),
+        "detail": "Open probe connection and identify target family/version.",
+    },
+    "CMD_READ_IDCODE": {
+        "label": "Read IDCODE",
+        "api": "read_device_version() as the Pynrfjprog-side target ID source",
+        "detail": "Read target identity for SWD auto-detect flow.",
+    },
+    "CMD_RECOVER": {
+        "label": "Recover",
+        "api": "api.recover(), api.sys_reset()",
+        "detail": "Recover a protected target, mass erase, then reset.",
+    },
+    "CMD_ERASE_ALL": {
+        "label": "Erase all",
+        "api": "api.erase_all()",
+        "detail": "Erase all target flash before programming.",
+    },
+    "CMD_RESET": {
+        "label": "Reset",
+        "api": "api.sys_reset(), api.go()",
+        "detail": "Reset target and run the application.",
+    },
+    "CMD_WRITE_RAM": {
+        "label": "Write RAM",
+        "api": "api.write(ram_addr, data)",
+        "detail": "Stage loader/data chunks in target RAM.",
+    },
+    "CMD_RUN_RAM_LOADER": {
+        "label": "Run RAM loader",
+        "api": "set loader entry context, api.go()",
+        "detail": "Start the RAM loader that programs flash from staged data.",
+    },
+}
+
 # Channel card colours
 CH_FG = {
     'idle':      '#666666',
@@ -148,7 +189,8 @@ class AppState:
         self.ch_count  = 4
         self.swd_freq  = '8 MHz'
         self.opts      = {'verify': True, 'reset': True,
-                          'auto': False,  'autoId': False}
+                          'auto': False,  'autoId': False,
+                          'recover': False, 'eraseAll': False}
         self.running   = False
         self.connected = False
         self.com_port  = ''
@@ -278,6 +320,10 @@ def main(page: ft.Page):
     r_ch4_btn     = ft.Ref[ft.OutlinedButton]()
     r_ch8_btn     = ft.Ref[ft.OutlinedButton]()
     r_start_btn   = ft.Ref[ft.FilledButton]()
+    r_recover_btn = ft.Ref[ft.OutlinedButton]()
+    r_erase_btn   = ft.Ref[ft.OutlinedButton]()
+    r_reset_btn   = ft.Ref[ft.OutlinedButton]()
+    r_idcode_btn  = ft.Ref[ft.OutlinedButton]()
     r_log_cnt     = ft.Ref[ft.Text]()
     r_ok_cnt      = ft.Ref[ft.Text]()
     r_err_cnt     = ft.Ref[ft.Text]()
@@ -586,6 +632,28 @@ def main(page: ft.Page):
         except Exception as ex:
             _add_log('SYS', 'err', f'串口傳送失敗: {ex}')
 
+    def _programmer_command_info(command: str) -> dict:
+        base = command.split(",", 1)[0].strip()
+        return PROGRAMMER_COMMANDS.get(
+            base,
+            {
+                "label": base,
+                "api": "custom programmer firmware command",
+                "detail": "Forward command to the connected programmer.",
+            },
+        )
+
+    def _send_programmer_command(command: str, *, simulate: bool = True):
+        info = _programmer_command_info(command)
+        _serial_send(command)
+        if simulate:
+            transport = "UART" if state.connected else "SIM"
+            _add_log(
+                'PYNRF',
+                'muted',
+                f'{transport} {command} -> {info["api"]}',
+            )
+
     def _on_connect(_):
         if state.connected:
             state.connected = False
@@ -624,7 +692,7 @@ def main(page: ft.Page):
                 r_sb_prog.current.value = f'Programmer: nRF54LM20A ({state.com_port})'
             _add_log('SYS', 'ok',
                      f'已連線 Programmer ({state.com_port} @ {state.com_baudrate})')
-            _serial_send("PING")
+            _send_programmer_command("CMD_CONNECT")
         page.update()
 
     # ── File list ─────────────────────────────────────────────────────────────
@@ -1014,7 +1082,7 @@ def main(page: ft.Page):
         state.flash_err_session = 0
         state.running = True
         _set_start_button_enabled(False)
-        _serial_send(f"FLASH_START,{af['name']},{af['crc']}")
+        _set_action_buttons_enabled(False)
         _set_status('燒錄中…')
         _add_log('SYS', 'info',
                  f'▶ 燒錄: {af["name"]}  CRC16={af["crc"]}')
@@ -1025,6 +1093,7 @@ def main(page: ft.Page):
             _add_log('SYS', 'warn', '無可用目標通道')
             state.running = False
             _set_start_button_enabled(True)
+            _set_action_buttons_enabled(True)
             return
 
         for c in active:
@@ -1039,6 +1108,18 @@ def main(page: ft.Page):
         page.update()
 
         def _run():
+            if state.opts.get('recover'):
+                _run_programmer_step("CMD_RECOVER", "Recover", 1.0)
+            if state.running and state.opts.get('eraseAll'):
+                _run_programmer_step("CMD_ERASE_ALL", "Erase all", 1.0)
+            if not state.running:
+                return
+
+            _run_programmer_step("CMD_CONNECT", "Connect", 0.25)
+            _run_programmer_step("CMD_READ_IDCODE", "Read IDCODE", 0.25)
+            _send_programmer_command(f"FLASH_START,{af['name']},{af['crc']}", simulate=False)
+            _send_programmer_command("CMD_WRITE_RAM,0x20000000,loader+chunks")
+            _send_programmer_command("CMD_RUN_RAM_LOADER,0x20000000")
             start_reenabled = False
             while state.running:
                 time.sleep(0.09)
@@ -1080,7 +1161,10 @@ def main(page: ft.Page):
 
             state.running = False
             _set_start_button_enabled(True)
-            _serial_send("FLASH_DONE")
+            _set_action_buttons_enabled(True)
+            _send_programmer_command("FLASH_DONE", simulate=False)
+            if state.opts.get('reset'):
+                _run_programmer_step("CMD_RESET", "Reset", 0.4)
             errs = sum(1 for c in active if c['status'] == 'done_err')
             _set_status(f'完成（{errs} 個錯誤）' if errs else '全部完成 ✓')
             _add_log('SYS', 'err' if errs else 'ok',
@@ -1093,7 +1177,8 @@ def main(page: ft.Page):
     def _stop_flash(_=None):
         state.running = False
         _set_start_button_enabled(True)
-        _serial_send("FLASH_STOP")
+        _set_action_buttons_enabled(True)
+        _send_programmer_command("FLASH_STOP", simulate=False)
         for i in range(state.ch_count):
             if state.ch_state[i]['status'] in ('running', 'detecting'):
                 state.ch_state[i]['status'] = 'idle'
@@ -1101,6 +1186,49 @@ def main(page: ft.Page):
         _add_log('SYS', 'warn', '使用者中止燒錄')
         _set_status('已中止')
         page.update()
+
+    def _run_programmer_step(command: str, label: str, delay_s: float = 1.0):
+        _set_status(f'{label}...')
+        _add_log('SYS', 'info', f'{label} start')
+        _send_programmer_command(command)
+        time.sleep(delay_s)
+        if state.running:
+            _add_log('SYS', 'ok', f'{label} done')
+
+    def _run_standalone_programmer_step(command: str, label: str):
+        if state.running:
+            _add_log('SYS', 'warn', f'{label} skipped: busy')
+            return
+        if not state.connected:
+            _add_log('SYS', 'warn', '請先連接 Programmer')
+            return
+
+        def _task():
+            state.running = True
+            _set_start_button_enabled(False)
+            _set_action_buttons_enabled(False)
+            try:
+                _run_programmer_step(command, label, 1.0)
+            finally:
+                state.running = False
+                _set_start_button_enabled(True)
+                _set_action_buttons_enabled(True)
+                _set_status('就緒')
+                page.update()
+
+        threading.Thread(target=_task, daemon=True).start()
+
+    def _recover_only(_=None):
+        _run_standalone_programmer_step("CMD_RECOVER", "Recover")
+
+    def _erase_all_only(_=None):
+        _run_standalone_programmer_step("CMD_ERASE_ALL", "Erase all")
+
+    def _reset_only(_=None):
+        _run_standalone_programmer_step("CMD_RESET", "Reset")
+
+    def _read_idcode_only(_=None):
+        _run_standalone_programmer_step("CMD_READ_IDCODE", "Read IDCODE")
 
     def _set_status(txt: str):
         if r_status.current:
@@ -1118,6 +1246,11 @@ def main(page: ft.Page):
             )
             page.update()
 
+    def _set_action_buttons_enabled(enabled: bool):
+        for ref in (r_recover_btn, r_erase_btn, r_reset_btn, r_idcode_btn):
+            if ref.current:
+                ref.current.disabled = not enabled
+        page.update()
 
     def _on_reorder_files(e):
         old_i = e.old_index
@@ -1176,6 +1309,20 @@ def main(page: ft.Page):
         _add_log('SYS',
                  'info' if state.opts['autoId'] else 'muted',
                  '自動識別晶片 ' + ('啟用' if state.opts['autoId'] else '關閉'))
+        page.update()
+
+    def _toggle_recover(e):
+        state.opts['recover'] = e.control.value
+        _add_log('SYS',
+                 'info' if state.opts['recover'] else 'muted',
+                 '燒錄前 Recover ' + ('啟用' if state.opts['recover'] else '關閉'))
+        page.update()
+
+    def _toggle_erase_all(e):
+        state.opts['eraseAll'] = e.control.value
+        _add_log('SYS',
+                 'info' if state.opts['eraseAll'] else 'muted',
+                 '燒錄前 Erase all ' + ('啟用' if state.opts['eraseAll'] else '關閉'))
         page.update()
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -1421,6 +1568,54 @@ def main(page: ft.Page):
                                 padding=ft.Padding.symmetric(
                                     horizontal=12, vertical=0)),
                         ),
+                        ft.OutlinedButton(
+                            ref=r_recover_btn,
+                            content=ft.Text('Recover'),
+                            height=36,
+                            on_click=_recover_only,
+                            tooltip='Run Recover only',
+                            style=ft.ButtonStyle(
+                                text_style=ft.TextStyle(
+                                    size=17, weight=ft.FontWeight.W_500),
+                                padding=ft.Padding.symmetric(
+                                    horizontal=12, vertical=0)),
+                        ),
+                        ft.OutlinedButton(
+                            ref=r_erase_btn,
+                            content=ft.Text('Erase all'),
+                            height=36,
+                            on_click=_erase_all_only,
+                            tooltip='Run Erase all only',
+                            style=ft.ButtonStyle(
+                                text_style=ft.TextStyle(
+                                    size=17, weight=ft.FontWeight.W_500),
+                                padding=ft.Padding.symmetric(
+                                    horizontal=12, vertical=0)),
+                        ),
+                        ft.OutlinedButton(
+                            ref=r_idcode_btn,
+                            content=ft.Text('IDCODE'),
+                            height=36,
+                            on_click=_read_idcode_only,
+                            tooltip='Run CMD_READ_IDCODE only',
+                            style=ft.ButtonStyle(
+                                text_style=ft.TextStyle(
+                                    size=17, weight=ft.FontWeight.W_500),
+                                padding=ft.Padding.symmetric(
+                                    horizontal=12, vertical=0)),
+                        ),
+                        ft.OutlinedButton(
+                            ref=r_reset_btn,
+                            content=ft.Text('Reset'),
+                            height=36,
+                            on_click=_reset_only,
+                            tooltip='Run CMD_RESET only',
+                            style=ft.ButtonStyle(
+                                text_style=ft.TextStyle(
+                                    size=17, weight=ft.FontWeight.W_500),
+                                padding=ft.Padding.symmetric(
+                                    horizontal=12, vertical=0)),
+                        ),
                         ft.VerticalDivider(
                             width=1, color=ft.Colors.OUTLINE_VARIANT),
 
@@ -1436,6 +1631,20 @@ def main(page: ft.Page):
                             on_change=_toggle_autoid,
                             label_text_style=ft.TextStyle(size=17),
                             active_color=ft.Colors.BLUE_400,
+                        ),
+                        ft.Switch(
+                            label='Recover',
+                            value=state.opts['recover'],
+                            on_change=_toggle_recover,
+                            label_text_style=ft.TextStyle(size=17),
+                            active_color=ft.Colors.ORANGE_400,
+                        ),
+                        ft.Switch(
+                            label='Erase all',
+                            value=state.opts['eraseAll'],
+                            on_change=_toggle_erase_all,
+                            label_text_style=ft.TextStyle(size=17),
+                            active_color=ft.Colors.RED_400,
                         ),
                         ft.VerticalDivider(
                             width=1, color=ft.Colors.OUTLINE_VARIANT),
@@ -1741,6 +1950,7 @@ def main(page: ft.Page):
     _rebuild_channel_grid()
     _sync_channel_btn_state()
     _set_start_button_enabled(True)
+    _set_action_buttons_enabled(True)
 
     _add_log('SYS', 'muted', 'SWD Multi-Channel Programmer GUI v1.0 啟動')
     _add_log('SYS', 'muted',
@@ -1748,6 +1958,9 @@ def main(page: ft.Page):
     _add_log('SYS', 'muted',
              f'SWD {state.swd_freq} · {state.ch_count} 通道 · CRC16 驗證已啟用')
     _add_log('SYS', 'muted', f'偵測到 {len(com_ports)} 個 COM port')
+    _add_log('PYNRF', 'muted', 'Supported CMD_* -> simulated Pynrfjprog mapping loaded')
+    for cmd, info in PROGRAMMER_COMMANDS.items():
+        _add_log('PYNRF', 'muted', f'{cmd}: {info["label"]} -> {info["api"]}')
     for i in range(4):
         _add_log(f'CH{i}', 'info',
                  f'Target: {CHIPS[i]} — RAM 256KB  Flash 1MB',
